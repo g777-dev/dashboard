@@ -241,37 +241,45 @@ var _e=useState(0);var extra=_e[0];var sExtra=_e[1];
 var _sm=useState(0);var selM=_sm[0];var sSelM=_sm[1];
 var _dp=useState({});var dPay=_dp[0];var sDPay=_dp[1];
 var _x=useState(function(){return ldExp()});var exps=_x[0];var sExps=_x[1];
+var _debts=useState(function(){try{var s=localStorage.getItem("luan_debts");return s?JSON.parse(s):iD.slice()}catch(e){return iD.slice()}});var debts=_debts[0];var sDebts=_debts[1];
+var _ed=useState(null);var editing=_ed[0];var sEditing=_ed[1];
+
+function saveDebts(nd){sDebts(nd);localStorage.setItem("luan_debts",JSON.stringify(nd))}
+function addParcela(){saveDebts(debts.concat([{id:Date.now(),n:"Nova parcela",ins:0,rem:1,dd:20,tp:"parcela"}]))}
+function addPontual(){saveDebts(debts.concat([{id:Date.now(),n:"Nova divida",ins:0,rem:1,total:0,dd:0,tp:"pontual",pm:0}]))}
+function removeDebt(id){saveDebts(debts.filter(function(d){return d.id!==id}))}
+function updateDebt(id,key,val){saveDebts(debts.map(function(d){if(d.id===id){var n={};for(var k in d)n[k]=d[k];n[key]=val;return n}return d}))}
 
 var totFI=2035;
 var totMI=totFI+extra;
 var totFE=635;
 var totTr=exps.reduce(function(s,x){return s+x.value},0);
+var totDebt=0;for(var j=0;j<debts.length;j++){var d=debts[j];if(d.rem>0)totDebt+=d.tp==="parcela"?d.ins*d.rem:(d.total||0)}
 
 var proj=useMemo(function(){
-var ms=[];var debts=iD.map(function(d){return{id:d.id,n:d.n,ins:d.ins,rem:d.rem,dd:d.dd,tp:d.tp,total:d.total,pm:d.pm}});var acc=0;
+var ms=[];var pD=debts.map(function(d){return{id:d.id,n:d.n,ins:d.ins,rem:d.rem,dd:d.dd,tp:d.tp,total:d.total,pm:d.pm}});var acc=0;
 for(var m=0;m<12;m++){
-var md=debts.filter(function(d){return d.rem>0});var tdp=0;
+var md=pD.filter(function(d){return d.rem>0});var tdp=0;
 for(var j=0;j<md.length;j++){
 var d=md[j];
 if(d.tp==="parcela"){tdp+=d.ins}
 else if(d.tp==="pontual"&&m===(d.pm||0)){tdp+=d.total}
 }
 var ep=dPay[5]||0;
-var emp=null;for(var j=0;j<debts.length;j++){if(debts[j].id===5)emp=debts[j]}
+var emp=null;for(var j=0;j<pD.length;j++){if(pD[j].id===5)emp=pD[j]}
 if(emp&&emp.rem>0&&ep>0){tdp+=Math.min(ep,emp.total)}
 var inc=totMI;var exp=totFE+tdp;var bal=inc-exp;acc+=bal;
 ms.push({month:MO[m],fullMonth:FM[m],income:inc,fixedExp:totFE,debtPay:tdp,totalExp:exp,balance:bal,accumulated:acc,activeDebts:md.length,debts:md.map(function(d){return{id:d.id,n:d.n,ins:d.ins,rem:d.rem,dd:d.dd,tp:d.tp,total:d.total,pm:d.pm}})});
-for(var j=0;j<debts.length;j++){
-var d=debts[j];
+for(var j=0;j<pD.length;j++){
+var d=pD[j];
 if(d.tp==="parcela"&&d.rem>0){d.rem--}
 else if(d.tp==="pontual"&&m===(d.pm||0)){d.rem=0}
 if(d.id===5&&ep>0){d.total=Math.max(0,d.total-ep);if(d.total<=0)d.rem=0}
 }
 }return ms;
-},[totMI,dPay]);
+},[totMI,dPay,debts]);
 
 var cm=proj[selM];
-var totDebt=0;for(var j=0;j<iD.length;j++){var d=iD[j];totDebt+=d.tp==="parcela"?d.ins*d.rem:(d.total||0)}
 var realBal=(cm?cm.balance:0)-totTr;
 var SC={background:"#15151F",border:"1px solid rgba(255,255,255,0.04)",borderRadius:14,padding:"18px"};
 var SM={fontFamily:"'Space Mono',monospace"};
@@ -327,28 +335,61 @@ tab==="gastos"?ce(ChatComp,{expenses:exps,setExpenses:sExps}):null,
 tab==="dividas"?ce("div",{style:{display:"flex",flexDirection:"column",gap:16}},
 ce("div",{style:{background:"linear-gradient(135deg,#1E1133,#1A0A2E)",border:"1px solid rgba(253,121,168,0.2)",borderRadius:16,padding:"22px",textAlign:"center"}},
 ce("div",{style:{fontSize:10,color:"#8B8B9E",letterSpacing:2,textTransform:"uppercase",marginBottom:8}},"Divida Total"),
-ce("div",{style:{fontSize:28,fontWeight:700,fontFamily:"'Space Mono',monospace",color:"#FD79A8"}},ce(AN,{value:totDebt}))
+ce("div",{style:{fontSize:28,fontWeight:700,fontFamily:"'Space Mono',monospace",color:totDebt>0?"#FD79A8":"#4ECDC4"}},totDebt>0?ce(AN,{value:totDebt}):"Zerada!")
 ),
-iD.filter(function(d){return d.rem>0}).map(function(debt){
-var total=debt.tp==="parcela"?debt.ins*debt.rem:(debt.total||0);
-return ce("div",{key:debt.id,style:{background:"#15151F",border:"1px solid rgba(255,255,255,0.04)",borderRadius:14,padding:"16px",borderLeft:"3px solid "+(CC[debt.tp]||"#8B8B9E")}},
+ce("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center"}},
+ce("div",{style:{fontSize:14,fontWeight:600}},"Parcelas"),
+ce("button",{onClick:addParcela,style:{padding:"8px 14px",borderRadius:20,border:"none",cursor:"pointer",background:"#4ECDC4",color:"#0D0D14",fontSize:11,fontWeight:700}},"+ Nova parcela")
+),
+debts.filter(function(d){return d.tp==="parcela"&&d.rem>0}).map(function(debt){
+var isEd=editing==="d"+debt.id;
+return ce("div",{key:debt.id,style:{background:"#15151F",border:"1px solid rgba(255,255,255,0.04)",borderRadius:14,padding:"16px",borderLeft:"3px solid #FFD93D"}},
+isEd?ce("div",{style:{display:"flex",flexDirection:"column",gap:8}},
+ce("input",{className:"inp",value:debt.n,onChange:function(ev){updateDebt(debt.id,"n",ev.target.value)},placeholder:"Nome",style:{border:"1px solid rgba(255,255,255,0.08)",background:"#0D0D14",color:"#F8F8F2",padding:"10px 14px",borderRadius:10,fontSize:13,fontFamily:"'DM Sans',sans-serif",outline:"none",width:"100%"}}),
+ce("div",{style:{display:"flex",gap:8}},
+ce("div",{style:{flex:1}},ce("div",{style:{fontSize:9,color:"#5A5A72",marginBottom:2}},"Parcela R$"),ce("input",{type:"number",value:debt.ins,onChange:function(ev){updateDebt(debt.id,"ins",parseFloat(ev.target.value)||0)},style:{border:"1px solid rgba(255,255,255,0.08)",background:"#0D0D14",color:"#F8F8F2",padding:"10px",borderRadius:10,fontSize:13,outline:"none",width:"100%"}})),
+ce("div",{style:{flex:1}},ce("div",{style:{fontSize:9,color:"#5A5A72",marginBottom:2}},"Faltam"),ce("input",{type:"number",value:debt.rem,onChange:function(ev){updateDebt(debt.id,"rem",parseInt(ev.target.value)||1)},style:{border:"1px solid rgba(255,255,255,0.08)",background:"#0D0D14",color:"#F8F8F2",padding:"10px",borderRadius:10,fontSize:13,outline:"none",width:"100%"}})),
+ce("div",{style:{flex:1}},ce("div",{style:{fontSize:9,color:"#5A5A72",marginBottom:2}},"Dia"),ce("input",{type:"number",value:debt.dd,onChange:function(ev){updateDebt(debt.id,"dd",parseInt(ev.target.value)||1)},style:{border:"1px solid rgba(255,255,255,0.08)",background:"#0D0D14",color:"#F8F8F2",padding:"10px",borderRadius:10,fontSize:13,outline:"none",width:"100%"}}))
+),
+ce("div",{style:{display:"flex",gap:8,marginTop:4}},
+ce("button",{onClick:function(){sEditing(null)},style:{flex:1,padding:"10px",borderRadius:10,border:"none",cursor:"pointer",background:"#4ECDC4",color:"#0D0D14",fontWeight:700,fontSize:12}},"Salvar"),
+ce("button",{onClick:function(){removeDebt(debt.id);sEditing(null)},style:{padding:"10px",borderRadius:10,border:"none",cursor:"pointer",background:"rgba(255,107,107,0.15)",color:"#FF6B6B",fontWeight:700,fontSize:12}},"Excluir")
+)
+):ce("div",{onClick:function(){sEditing("d"+debt.id)},style:{cursor:"pointer"}},
 ce("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}},
-ce("div",null,
-ce("div",{style:{fontSize:14,fontWeight:600}},debt.n),
-ce("div",{style:{fontSize:10,color:"#5A5A72",marginTop:2}},
-debt.tp==="parcela"?debt.rem+"x de "+fmt(debt.ins):
-debt.tp==="pontual"?"Pagamento unico":"Em aberto"
-)
+ce("div",null,ce("div",{style:{fontSize:14,fontWeight:600}},debt.n),ce("div",{style:{fontSize:10,color:"#5A5A72",marginTop:2}},debt.rem+"x de "+fmt(debt.ins)+" - Dia "+debt.dd)),
+ce("div",{style:{textAlign:"right"}},ce("div",{style:{fontSize:16,fontWeight:700,fontFamily:"'Space Mono',monospace"}},fmt(debt.ins*debt.rem)),ce("div",{style:{fontSize:9,padding:"2px 8px",borderRadius:20,background:"rgba(255,217,61,0.1)",color:"#FFD93D",display:"inline-block",marginTop:4}},debt.rem+" restantes"))
 ),
-ce("div",{style:{textAlign:"right"}},
-ce("div",{style:{fontSize:16,fontWeight:700,fontFamily:"'Space Mono',monospace"}},fmt(total)),
-ce("div",{style:{fontSize:9,marginTop:4,padding:"2px 8px",borderRadius:20,background:debt.tp==="pontual"?"rgba(255,107,107,0.15)":"rgba(255,217,61,0.1)",color:debt.tp==="pontual"?"#FF6B6B":"#FFD93D",display:"inline-block"}},
-debt.tp==="pontual"?"URGENTE":debt.tp==="aberto"?"EM ABERTO":debt.rem+" restantes"
-)
-)
+ce("div",{style:{fontSize:9,color:"#5A5A72",marginTop:8,textAlign:"center"}},"Toque para editar")
 )
 );
-})
+}),
+ce("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:8}},
+ce("div",{style:{fontSize:14,fontWeight:600}},"Dividas Pontuais / Aberto"),
+ce("button",{onClick:addPontual,style:{padding:"8px 14px",borderRadius:20,border:"none",cursor:"pointer",background:"#4ECDC4",color:"#0D0D14",fontSize:11,fontWeight:700}},"+ Nova")
+),
+debts.filter(function(d){return(d.tp==="pontual"||d.tp==="aberto")&&d.rem>0}).map(function(debt){
+var isEd=editing==="p"+debt.id;
+var val=debt.total||0;
+return ce("div",{key:debt.id,style:{background:"#15151F",border:"1px solid rgba(255,255,255,0.04)",borderRadius:14,padding:"16px",borderLeft:"3px solid "+(CC[debt.tp]||"#6C5CE7")}},
+isEd?ce("div",{style:{display:"flex",flexDirection:"column",gap:8}},
+ce("input",{value:debt.n,onChange:function(ev){updateDebt(debt.id,"n",ev.target.value)},placeholder:"Nome",style:{border:"1px solid rgba(255,255,255,0.08)",background:"#0D0D14",color:"#F8F8F2",padding:"10px 14px",borderRadius:10,fontSize:13,fontFamily:"'DM Sans',sans-serif",outline:"none",width:"100%"}}),
+ce("div",null,ce("div",{style:{fontSize:9,color:"#5A5A72",marginBottom:2}},"Valor R$"),ce("input",{type:"number",value:val,onChange:function(ev){updateDebt(debt.id,"total",parseFloat(ev.target.value)||0)},style:{border:"1px solid rgba(255,255,255,0.08)",background:"#0D0D14",color:"#F8F8F2",padding:"10px",borderRadius:10,fontSize:13,outline:"none",width:"100%"}})),
+ce("div",{style:{display:"flex",gap:8,marginTop:4}},
+ce("button",{onClick:function(){sEditing(null)},style:{flex:1,padding:"10px",borderRadius:10,border:"none",cursor:"pointer",background:"#4ECDC4",color:"#0D0D14",fontWeight:700,fontSize:12}},"Salvar"),
+ce("button",{onClick:function(){removeDebt(debt.id);sEditing(null)},style:{flex:1,padding:"10px",borderRadius:10,border:"none",cursor:"pointer",background:"rgba(78,205,196,0.15)",color:"#4ECDC4",fontWeight:700,fontSize:12}},"Ja paguei"),
+ce("button",{onClick:function(){removeDebt(debt.id);sEditing(null)},style:{padding:"10px",borderRadius:10,border:"none",cursor:"pointer",background:"rgba(255,107,107,0.15)",color:"#FF6B6B",fontWeight:700,fontSize:12}},"X")
+)
+):ce("div",{onClick:function(){sEditing("p"+debt.id)},style:{cursor:"pointer"}},
+ce("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}},
+ce("div",null,ce("div",{style:{fontSize:14,fontWeight:600}},debt.n),ce("div",{style:{fontSize:10,color:"#5A5A72",marginTop:2}},debt.tp==="aberto"?"Em aberto":"Pagamento unico")),
+ce("div",{style:{textAlign:"right"}},ce("div",{style:{fontSize:16,fontWeight:700,fontFamily:"'Space Mono',monospace"}},fmt(val)),ce("div",{style:{fontSize:9,padding:"2px 8px",borderRadius:20,background:debt.tp==="pontual"?"rgba(255,107,107,0.15)":"rgba(253,121,168,0.15)",color:debt.tp==="pontual"?"#FF6B6B":"#FD79A8",display:"inline-block",marginTop:4}},debt.tp==="pontual"?"PENDENTE":"EM ABERTO"))
+),
+ce("div",{style:{fontSize:9,color:"#5A5A72",marginTop:8,textAlign:"center"}},"Toque para editar")
+)
+);
+}),
+debts.filter(function(d){return d.rem>0}).length===0?ce("div",{style:{textAlign:"center",padding:20}},ce("div",{style:{fontSize:16,fontWeight:700,color:"#4ECDC4"}},"Sem dividas!"),ce("div",{style:{fontSize:12,color:"#5A5A72",marginTop:4}},"Use os botoes acima para adicionar.")):null
 ):null,
 
 tab==="projecao"?ce("div",{style:{display:"flex",flexDirection:"column",gap:16}},
